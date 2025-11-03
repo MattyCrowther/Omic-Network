@@ -1,0 +1,17 @@
+# Ignore everything
+*
+
+# Allow directories (so we can access nested .py files)
+!*/
+
+# Allow Python files
+!*.py
+
+# Allow this .gitignore file
+!.gitignore
+!README.md
+*.gb
+*.gff3
+*.tsv
+*.mztab
+*.csv

@@ -71,9 +71,6 @@ class OmicGraphBuilder:
                              "src_label" : dataset.omics_type,
                              "dst_label" : label})
         for label, idmap in nodes_by_label.items():
-            for _id,p in idmap.items():
-                if _id == "b3739":
-                    print(p,label)
             rows = [{"id": _id, "props": p} 
                     for _id, p in idmap.items()]
             self._storage.upsert_nodes(label, rows)
@@ -94,7 +91,8 @@ class OmicGraphBuilder:
             groups.append((gid, ids,types))
             all_ids.update(ids)
 
-        existing = {n.id: n for n in self._storage.find_nodes(ids=list(all_ids))}
+        existing = {n.id: n for n in 
+                    self._storage.find_nodes(ids=list(all_ids))}
         existing_set = set(existing.keys())
 
         # B) resolve groups; defer unknown creation and alias adds
@@ -113,7 +111,8 @@ class OmicGraphBuilder:
                 f_id = "UNK:" + ids[0]
                 gid_to_nid[gid] = [f_id,type]
                 unknown_ids.append(f_id)
-                unknown_rows.append({"id": f_id, "props": {IDS.predicates.alias: ids}})
+                unknown_rows.append({"id": f_id, 
+                                     "props": {IDS.predicates.alias: ids}})
             else:
                 f_node = self._storage.merge_nodes(have)
                 gid_to_nid[gid] = (f_node.id,f_node.label)
@@ -126,7 +125,8 @@ class OmicGraphBuilder:
 
         # batch alias additions per node
         for nid, aliases in alias_adds.items():
-            self._storage.add_property(nid, IDS.predicates.alias, list(set(aliases)))
+            self._storage.add_property(nid, IDS.predicates.alias, 
+                                       list(set(aliases)))
 
         # C) pre-aggregate relationships to dedupe
         rel_bins = defaultdict(list)
@@ -144,18 +144,29 @@ class OmicGraphBuilder:
             element ={"src": s_id,
                       "dst": t_id,
                       "props": {IDS.predicates.confidence: 
-                                _count_to_conf(tot)}}
-            if s_type is not None:
-                element["src_label"] = s_type
-                if t_type is None:
-                    element["dst_label"] = []
-            if t_type is not None:
-                element["dst_label"] = t_type
-                if s_type is None:
-                    element["src_label"] = []
+                                _count_to_conf(tot)},
+                        "src_label": _normalize_labels(s_type),
+                        "dst_label": _normalize_labels(t_type),}
+
+
             rel_bins[rel].append(element)
 
         for rel_label, rows in rel_bins.items():
-            self._storage.upsert_relationships(rel_label, rows)
-
+            try:
+                self._storage.upsert_relationships(rel_label, rows)
+            except Exception as ex:
+                print(ex)
+                print(rel_label)
+                print(rows)
+                exit()
         return unknown_ids
+
+def _normalize_labels(x):
+    if not x:
+        return []
+    if isinstance(x, str):
+        candidates = [x]
+    else:
+        candidates = list(x)
+    labels = [str(v).strip() for v in candidates if v is not None and str(v).strip() != ""]
+    return labels

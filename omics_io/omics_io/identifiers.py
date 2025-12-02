@@ -26,7 +26,6 @@ class _Role:
 
 @dataclass(frozen=True, slots=True)
 class _Predicate:
-    alias: Final[str] = "alias"
     produced_by: Final[str] = "produced_by"
     contains: Final[str] = "contains"
     modification: Final[str] = "modification"

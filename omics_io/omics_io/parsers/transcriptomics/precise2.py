@@ -68,7 +68,6 @@ def _build_column_meta_and_xrefs(smeta: pd.DataFrame) -> tuple[List[ColumnRec], 
                 id=str(sid),
                 entity=IDS.type.sample,
                 namespace=IDS.ns.SampleID,
-                role="sample",
                 attrs=attrs,
             )
         )
@@ -78,9 +77,17 @@ def _build_column_meta_and_xrefs(smeta: pd.DataFrame) -> tuple[List[ColumnRec], 
                 xrefs.append(CrossRef(str(sid), ns, str(val).strip()))
     return column_meta, xrefs
 
-def _feature_selfrefs(ids: List[str]) -> List[CrossRef]:
+def _feature_selfrefs(dataframe: pd.DataFrame) -> List[CrossRef]:
     """Feature self-mapping cross-refs."""
-    return [CrossRef( i, "locus_tag", i) for i in ids]
+    refs = []
+
+    '''
+    for gene in dataframe.index:
+        for col in dataframe.columns:
+            if dataframe.at[gene, col] != 0:
+                refs.append(CrossRef(gene, IDS.predicates.has_feature, col))
+    '''
+    return refs
 
 def parse_precise2(
     expression_path: str,
@@ -91,7 +98,7 @@ def parse_precise2(
     """PRECISE2 → OmicData (modular version)."""
     expr = _load_matrix(expression_path)
     features = _build_feature_meta(expr)
-    cross_ref = _feature_selfrefs(list(expr.index))
+    cross_ref = _feature_selfrefs(expr)
 
     column_meta: List[ColumnRec] = []
     if metadata_path:
@@ -105,7 +112,6 @@ def parse_precise2(
                 id=str(cid),
                 entity=IDS.type.sample,
                 namespace=IDS.ns.SampleID,
-                role="sample",
             )
             for cid in expr.columns
         ]

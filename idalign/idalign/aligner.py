@@ -27,15 +27,14 @@ def key(scope: str, ident: str) -> ScopedID:
     return (str(scope), str(ident).strip())
 
 
-def alias_ok(
-    a: ScopedID,
-    b: ScopedID,
-    id_type: Dict[ScopedID, str],
-    inferred: Dict[ScopedID, str],
-) -> bool:
+def alias_ok(a, b, id_type, inferred):
     ta = id_type.get(a) or inferred.get(a)
     tb = id_type.get(b) or inferred.get(b)
+    
+    if ta is None and tb is None:
+        return False
     return ta is None or tb is None or ta == tb
+
 
 # ---------------- Stage 1: feature meta ----------------
 def collect_feature_scopes_and_types(
@@ -44,12 +43,18 @@ def collect_feature_scopes_and_types(
     feat_scope: Dict[Tuple[str, str], str] = {}
     id_type: Dict[ScopedID, str] = {}
     for od in datasets:
-        for f in od.feature_meta or []:
-            scope = normalize_feature_scope(od, getattr(f, "namespace", None))
+        for f in od.feature_meta:
+            scope = normalize_feature_scope(od, f.namespace)
             feat_scope[(od.name, f.id)] = scope
-            t = getattr(f, "entity", None)
-            if t:
-                id_type[key(scope, f.id)] = t
+            if f.entity:
+                id_type[key(scope, f.id)] = f.entity
+
+        for f in od.column_meta:
+            scope = normalize_feature_scope(od, f.namespace)
+            feat_scope[(od.name, f.id)] = scope
+            if f.entity:
+                id_type[key(scope, f.id)] = f.entity
+
     return feat_scope, id_type
 
 
@@ -66,7 +71,7 @@ def ingest_cross_refs(
 
     for od in datasets:
         ds_default_scope = normalize_feature_scope(od, None)
-        for cr in od.cross_ref or []:
+        for cr in od.cross_ref:
             src_raw = str(cr.src).strip()
             tgt_raw = str(cr.target).strip()
             rel_ns = str(cr.namespace).lower().strip()
@@ -104,6 +109,7 @@ def ingest_cross_refs(
                     inferred_type[k_tgt] = tgt_t
                 rel_edges.append((k_src, predicate, k_tgt))
             else:
+                print(f'Unknown Edge: {k_src,rel_ns,k_tgt}')
                 unknown_edges.append((k_src, rel_ns, k_tgt))
 
     return alias_edges, rel_edges, unknown_edges, inferred_type
@@ -128,7 +134,6 @@ def build_union_find(
         touch(b)
         if alias_ok(a, b, id_type, inferred_type):
             uf.union(a, b)
-
     for a, _, b in rel_edges:
         touch(a)
         touch(b)
@@ -194,7 +199,7 @@ def materialize_alignment(
     for a, predicate, b in rel_edges:
         ga, gb = gid_for(a), gid_for(b)
         group_relations[(ga, predicate, gb)] += 1
-
+    
     return AlignmentResult(
         node_to_gid=node_to_gid,
         groups=dict(groups),

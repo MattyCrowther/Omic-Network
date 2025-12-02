@@ -5,8 +5,10 @@ import os
 from collections import defaultdict
 
 from neo4j_interface.storage import Neo4jStorage
+from neo4j_interface.utils.storage_objects import RelationshipRow, NodeRow
 from network_builder.utils.network_builder_convention import NetworkBuilderConvention
 from omics_io.omics_io.identifiers import IDS
+from omics_io.omics_io.parse_obj import OmicData
 
 config_path = Path(__file__).parent / "config.yaml"
 
@@ -20,12 +22,6 @@ password = config["STORAGE"]["password"]
 matrix_store = "measure_store"
 if not os.path.isdir(matrix_store):
     os.mkdir(matrix_store)
-
-
-def _build_properties(md):
-    properties = md.properties
-    return properties
-
 
 # Things to consider (No order)
 
@@ -54,25 +50,31 @@ class OmicGraphBuilder:
             convention=NetworkBuilderConvention(),
         )
 
-    def add_omic_set(self, dataset):
+    def add_omic_set(self, dataset : OmicData):
         nodes_by_label = defaultdict(dict)
         rel_rows = []
         mat_fn = Path(f"{matrix_store}/{dataset.name}")
         self._storage.upsert_node(dataset.omics_type, 
                                   dataset.name, 
                                   props={"location": str(mat_fn)})
-        for ele, mat, md in dataset:
+        for ele, md in dataset.features():
             label = md.entity
-            props = _build_properties(md)
-            nodes_by_label[label][ele] = props
-            rel_rows.append({"src": dataset.name, 
-                             "dst": ele, 
-                             "props": md.properties,
-                             "src_label" : dataset.omics_type,
-                             "dst_label" : label})
+            nodes_by_label[label][ele] = md.properties
+            rel_rows.append(RelationshipRow(dataset.name, 
+                                            ele, 
+                                            None,
+                                            dataset.omics_type,
+                                            label))
+        for ele,md in dataset.columns():
+            nodes_by_label[md.entity][ele] = md.properties
+            rel_rows.append(RelationshipRow(dataset.name, 
+                                            ele, 
+                                            None,
+                                            dataset.omics_type,
+                                            md.entity))
+
         for label, idmap in nodes_by_label.items():
-            rows = [{"id": _id, "props": p} 
-                    for _id, p in idmap.items()]
+            rows = [NodeRow(_id,p) for _id, p in idmap.items()]
             self._storage.upsert_nodes(label, rows)
         self._storage.upsert_relationships(IDS.predicates.has_feature, 
                                            rel_rows)
@@ -111,13 +113,13 @@ class OmicGraphBuilder:
                 f_id = "UNK:" + ids[0]
                 gid_to_nid[gid] = [f_id,type]
                 unknown_ids.append(f_id)
-                unknown_rows.append({"id": f_id, 
-                                     "props": {IDS.predicates.alias: ids}})
+                unknown_rows.append(NodeRow(f_id, {IDS.predicates.alias: ids}))
             else:
-                f_node = self._storage.merge_nodes(have)
+                f_node = self._storage.merge_nodes(have,label=type)
                 gid_to_nid[gid] = (f_node.id,f_node.label)
                 missing = [i for i in ids if i not in have]
                 if missing:
+                    print(f_node.id)
                     alias_adds[f_node.id].extend(missing)
 
         if unknown_rows:
@@ -141,13 +143,12 @@ class OmicGraphBuilder:
             agg[(rel, s_id, t_id, s_type, t_type)] += cnt
 
         for (rel, s_id, t_id,s_type, t_type), tot in agg.items():
-            element ={"src": s_id,
-                      "dst": t_id,
-                      "props": {IDS.predicates.confidence: 
-                                _count_to_conf(tot)},
-                        "src_label": _normalize_labels(s_type),
-                        "dst_label": _normalize_labels(t_type),}
-
+            element = RelationshipRow(s_id,
+                                     t_id,
+                                     {IDS.predicates.confidence: 
+                                      _count_to_conf(tot)},
+                                     _normalize_labels(s_type),
+                                     _normalize_labels(t_type))
 
             rel_bins[rel].append(element)
 

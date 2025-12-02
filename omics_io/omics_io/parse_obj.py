@@ -22,9 +22,14 @@ class FeatureRec:
 class ColumnRec:
     id: str                    
     entity: str
-    namespace: str
-    role: str                  
+    namespace: str      
     attrs: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def properties(self):
+        props = self.attrs.copy()
+        props["namespace"] = self.namespace
+        return props
 
 @dataclass(frozen=True, slots=True)
 class CrossRef:     
@@ -87,20 +92,20 @@ class OmicData:
             if list(m.columns) != ids:
                 raise ValueError("column_meta IDs must match matrix.columns order")
 
-    @property
-    def features(self) -> pd.Index:
-        return self.matrix.index
-
-    @property
-    def columns(self) -> pd.Index:
-        return self.matrix.columns
-    
-    def __iter__(self) -> Iterator[Tuple[str, pd.Series, Optional[FeatureRec]]]:
-        """
-        Yields (feature_id, row_series, feature_meta) for each row in matrix.
-        feature_meta is None if feature_meta was not provided.
-        """
+    def features(self,return_matrix=False) -> Iterator:
         fm = self.feature_meta
         for i, fid in enumerate(self.matrix.index):
             meta = fm[i] if fm is not None else None
-            yield str(fid), self.matrix.iloc[i, :], meta
+            if return_matrix:
+                yield str(fid), self.matrix.iloc[i, :], meta
+            else:
+                yield str(fid), meta
+
+    def columns(self,return_matrix=False) -> Iterator:
+        cm = self.column_meta
+        for i, fid in enumerate(self.matrix.columns):
+            meta = cm[i] if cm is not None else None
+            if return_matrix:
+                yield str(fid), self.matrix.iloc[:, i], meta
+            else:
+                yield str(fid), meta

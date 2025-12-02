@@ -24,30 +24,12 @@ from omics_io.omics_io.identifiers import IDS
 class TestNetworkBuilder(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
-        """
-        cls.sequence_data = parse_genbank(Path("data/sequence.gb"))
-
-        cls.gff_data = parse_gff3(Path("data/sequence.gff3"))
-        cls.trans_data = parse_precise2(
-            Path("data/expression_tpm_log.csv"),
-            presence_path=Path("data/gene_presence_matrix_bool.csv"),
-            metadata_path=Path("data/samples_metadata.csv"),
-        )
-        cls.prot1 = parse_mztab(Path("data/F020490.pride.mztab"))
-        cls.prot2 = parse_mztab(Path("data/F020549.pride.mztab"))
-        cls.prot3 = parse_mztab(Path("data/F023569.pride.mztab"))
-        cls.meta = parse_metabolomics(
-            Path("data/measurements.tsv"),
-            mapping_path=Path("data/map.tsv"),
-        )
-        """
         cls.storage = Neo4jStorage(url, username=username, 
                                    password=password,
                                    convention=NetworkBuilderConvention())
 
     def setUp(self):
-        pass#self.storage.drop()
+        self.storage.drop()
 
     def assert_identifiers_present(self, dataset):
         # Every element from each dataset must appear either
@@ -72,22 +54,24 @@ class TestNetworkBuilder(unittest.TestCase):
             r_node_type = list(r_node_types)[0]
             r_node_ids = list(set([e.identifier for e in nodes]))
             s_nodes = self.storage.find_nodes(ids=r_node_ids,label=r_node_type)
+
             if len(s_nodes) == 0:
                 uk_node_ids = [f"UNK:{r}" for r in r_node_ids]
                 s_nodes = self.storage.find_nodes(ids=uk_node_ids,
                                                   label=IDS.type.unknown)
+                
                 self.assertEqual(len(s_nodes),1, f"Given {uk_node_ids}, with type {r_node_type} cant find a node. {gid}")
-                self.assertCountEqual(
-                    r_node_ids,
-                    s_nodes[0].properties.get(IDS.predicates.alias)
-                )
+                s_aliases = s_nodes[0].properties.get(IDS.predicates.alias)
+                if s_aliases is None:
+                    s_aliases = []
+                self.assertCountEqual(r_node_ids,s_aliases)
             else:
+                s_aliases = s_nodes[0].properties.get(IDS.predicates.alias)
+                if s_aliases is None:
+                    s_aliases = []
                 self.assertEqual(len(s_nodes), 1, f"Given {r_node_ids}, cant find a node. {gid}")
-                self.assertCountEqual(
-                    r_node_ids,
-                    s_nodes[0].properties.get(IDS.predicates.alias) + [s_nodes[0].id],
-                    f"{r_node_ids},{s_nodes[0].properties.get(IDS.predicates.alias) + [s_nodes[0].id]}",
-                )
+                self.assertCountEqual(r_node_ids,s_aliases + [s_nodes[0].id],
+                                      f"{r_node_ids},{s_aliases + [s_nodes[0].id]}")
 
     def assert_relations_projected(self, result):
         # Edges exist for every alignment edge, with confidence in $(0,1)$.
@@ -141,13 +125,13 @@ class TestNetworkBuilder(unittest.TestCase):
         gff_data = parse_gff3(Path("data/sequence.gff3"))
         result = match_references(sequence_data,gff_data)
 
-        #gb.add_omic_set(sequence_data)
-        #gb.add_omic_set(gff_data)
-        #gb.add_alignment_data(result)
+        gb.add_omic_set(sequence_data)
+        gb.add_omic_set(gff_data)
+        gb.add_alignment_data(result)
 
-        #self.assert_identifiers_present(sequence_data)
-        #self.assert_identifiers_present(gff_data)
-        #self.assert_groups_materialized(result)
+        self.assert_identifiers_present(sequence_data)
+        self.assert_identifiers_present(gff_data)
+        self.assert_groups_materialized(result)
         self.assert_relations_projected(result)
         self.assert_idempotent([sequence_data,gff_data], result,gb)
 
@@ -161,9 +145,18 @@ class TestNetworkBuilder(unittest.TestCase):
             metadata_path=Path("data/samples_metadata.csv"),
         )
         result = match_references(sequence_data,gff_data,trans_data)
-
-        gb.add_omic_set(sequence_data)
-        gb.add_omic_set(gff_data)
+        '''
+        # The problem is essentially: GeneID : [SampleId]. But Its a matrix right? Each Gene id is tagged as synonym  
+        for r,v in result.groups.items():
+            if "SRX4985292" in [x.identifier for x in v]:
+                print([a.identifier for a in v])
+            rels = result.relations_from(r)
+            for rel in rels:
+                if "SRX4985292" in [x.identifier for x in result.members(rel[1])]:
+                    print(v,rel)
+        '''
+        #gb.add_omic_set(sequence_data)
+        #gb.add_omic_set(gff_data)
         gb.add_omic_set(trans_data)
         gb.add_alignment_data(result)
 
@@ -175,13 +168,42 @@ class TestNetworkBuilder(unittest.TestCase):
         self.assert_idempotent([sequence_data,gff_data,trans_data], result,gb)
 
     def test_build_all_omic(self):
-        result = match_references(
-            self.sequence_data,
-            self.gff_data,
-            self.trans_data,
-            self.prot1,
-            self.prot2,
-            self.prot3,
-            self.meta,
+        gb = OmicGraphBuilder()
+        sequence_data = parse_genbank(Path("data/sequence.gb"))
+        gff_data = parse_gff3(Path("data/sequence.gff3"))
+        trans_data = parse_precise2(
+            Path("data/expression_tpm_log.csv"),
+            presence_path=Path("data/gene_presence_matrix_bool.csv"),
+            metadata_path=Path("data/samples_metadata.csv"),
         )
-        build_network(self.sequence_data, alignment_data=result)
+        prot1 = parse_mztab(Path("data/F020490.pride.mztab"))
+        prot2 = parse_mztab(Path("data/F020549.pride.mztab"))
+        prot3 = parse_mztab(Path("data/F023569.pride.mztab"))
+        meta = parse_metabolomics(
+            Path("data/measurements.tsv"),
+            mapping_path=Path("data/map.tsv"),
+        )
+        result = match_references(sequence_data,gff_data,
+                                  trans_data,prot1,
+                                  prot2,prot3,meta)
+
+        gb.add_omic_set(sequence_data)
+        gb.add_omic_set(gff_data)
+        gb.add_omic_set(trans_data)
+        gb.add_omic_set(prot1)
+        gb.add_omic_set(prot2)
+        gb.add_omic_set(prot3)
+        gb.add_omic_set(meta)
+
+        gb.add_alignment_data(result)
+        
+        self.assert_identifiers_present(sequence_data)
+        self.assert_identifiers_present(gff_data)
+        self.assert_identifiers_present(trans_data)
+        self.assert_identifiers_present(prot1)
+        self.assert_identifiers_present(prot2)
+        self.assert_identifiers_present(prot3)
+        self.assert_identifiers_present(meta)
+        self.assert_groups_materialized(result)
+        self.assert_relations_projected(result)
+        self.assert_idempotent([sequence_data,gff_data,trans_data], result,gb)

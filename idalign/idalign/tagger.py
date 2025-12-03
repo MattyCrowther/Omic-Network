@@ -1,6 +1,7 @@
 from omics_io.omics_io.identifiers import IDS
 
 TYPE_MAP = {
+    # Aliases (unique IDs / synonyms per entity)
     "asap": "alias",
     "ecocyc": "alias",
     "geneid": "alias",
@@ -12,10 +13,12 @@ TYPE_MAP = {
     "alias": "alias",
     "gene": "alias",
     "locus_tag": "alias",
-    "geo": "alias",
-    "genotype": "alias",
-    "run": "alias",
-    "srx": "alias",
+    "run": "alias",            # SRR accession (unique)
+    "srx": "alias",            # SRX accession (unique)
+
+    # Relations (shared target nodes → structure, not equivalence)
+    "geo": "relation",         # GSE series ID (shared parent)
+    "genotype": "relation",    # shared genotype label/entity
     IDS.predicates.modification: "relation",
     IDS.predicates.produced_by: "relation",
     IDS.predicates.contains: "relation",
@@ -25,7 +28,36 @@ TYPE_MAP = {
     "protein_id": "relation",
     "uniprotkb/swiss-prot": "relation",
     "parent": "relation",
-    "genbank": "relation"}
+    "genbank": "relation",
+}
+TYPE_MAP = {
+    "asap": "alias",
+    "ecocyc": "alias",
+    "geneid": "alias",
+    "id": "alias",
+    "kegg.compound": "alias",
+    "name": "alias",
+    "refmet": "alias",
+    "workbench": "alias",
+    "alias": "alias",
+    "gene": "alias",
+    "locus_tag": "alias",
+    "run": "alias",
+    "srx": "alias", 
+    "geo": "relation",
+    "genotype": "relation",
+    IDS.predicates.modification: "relation",
+    IDS.predicates.produced_by: "relation",
+    IDS.predicates.contains: "relation",
+    IDS.predicates.has_feature: "relation",
+    IDS.predicates.product: "relation",
+    "product_label": "relation",
+    "protein_id": "relation",
+    "uniprotkb/swiss-prot": "relation",
+    "parent": "relation",
+    "genbank": "relation",
+}
+
 
 _REL_TYPE_MAP = {
     "protein_id": IDS.type.protein,
@@ -37,6 +69,7 @@ _REL_TYPE_MAP = {
     "produced_by": lambda a: IDS.type.protein if a == IDS.type.gene else "unknown",
     "product_label": IDS.type.protein,
     "product": IDS.type.protein,
+    "geo" : IDS.type.study
 }
 
 REGISTRY_NS = {

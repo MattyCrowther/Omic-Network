@@ -108,23 +108,29 @@ class OmicGraphBuilder:
                 type = None
             else:
                 type = type[0]
-            if not have:
-                # stable unknown id from aliases
-                f_id = "UNK:" + ids[0]
-                gid_to_nid[gid] = [f_id,type]
-                unknown_ids.append(f_id)
-                unknown_rows.append(NodeRow(f_id, {IDS.predicates.alias: ids}))
+            if len(have) == 0:
+                gid_to_nid[gid] = [ids[0],type]
+                if type is None:
+                    unknown_ids.append(ids[0])
+                    unknown_rows.append(NodeRow(ids[0], 
+                                            {IDS.predicates.alias: 
+                                             ids}))
             else:
-                f_node = self._storage.merge_nodes(have,label=type)
-                gid_to_nid[gid] = (f_node.id,f_node.label)
+                if len(have) > 1:
+                    f_node = self._storage.merge_nodes(have,label=type)
+                    node_id = f_node.id
+                    node_label = f_node.label
+                else:
+                    node_id = have[0]
+                    node_label = type
+                gid_to_nid[gid] = (node_id,node_label)
                 missing = [i for i in ids if i not in have]
                 if missing:
-                    print(f_node.id)
-                    alias_adds[f_node.id].extend(missing)
+                    alias_adds[node_id].extend(missing)
 
         if unknown_rows:
-            self._storage.upsert_nodes(IDS.type.unknown, unknown_rows)
-
+            self._storage.upsert_nodes(IDS.type.unknown, 
+                                       unknown_rows)
         # batch alias additions per node
         for nid, aliases in alias_adds.items():
             self._storage.add_property(nid, IDS.predicates.alias, 
@@ -153,13 +159,7 @@ class OmicGraphBuilder:
             rel_bins[rel].append(element)
 
         for rel_label, rows in rel_bins.items():
-            try:
-                self._storage.upsert_relationships(rel_label, rows)
-            except Exception as ex:
-                print(ex)
-                print(rel_label)
-                print(rows)
-                exit()
+            self._storage.upsert_relationships(rel_label, rows)
         return unknown_ids
 
 def _normalize_labels(x):

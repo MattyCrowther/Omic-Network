@@ -1,6 +1,7 @@
 from network_builder.neo4j_interface.storage import Neo4jStorage
 from network_builder.neo4j_interface.utils.storage_objects import NodeObject
 from omics_io.omics_io.identifiers import IDS
+from neo4j_interface.utils.storage_objects import RelationshipRow
 
 P_ALIAS = IDS.predicates.alias
 
@@ -11,14 +12,46 @@ def clean_network(storage:Neo4jStorage):
     These are likely things that would be unknownable until the 
     network was built such as missed matches due to type.
     '''
-    _handle_unknown_nodes(storage)
+    #_connect_layers(storage)
+    #_handle_unknown_nodes(storage)
     _handle_multiple_products(storage)
 
 
 
+def _connect_layers(storage:Neo4jStorage):
+    def _get_entities(label):
+        omics = storage.find_nodes(label=label, 
+                                   with_relationships=True)
+        eles = []
+        for omic in omics:
+            for rel_list in omic.relationships.values():
+                eles.extend(rel_list)
+        return set(eles)
+    
+    def _build_rel_row(set1, set2, set1_labels, set2_labels):
+        for x in set1 & set2:
+            rel_rows.append(RelationshipRow(x, x, None,
+                                            set1_labels,
+                                            set2_labels))
+
+    g_elems = _get_entities(IDS.omics_type.genomics)
+    t_elems = _get_entities(IDS.omics_type.transcriptomics)
+    p_elems = _get_entities(IDS.omics_type.proteomics)
+    m_elems = _get_entities(IDS.omics_type.metabolomics)
+    
+    rel_rows = []
+    g_labs = [IDS.type.dna,IDS.type.gene,IDS.type.cds]
+    t_labs = [IDS.type.rna]
+    p_labs = [IDS.type.protein]
+    m_labs = [IDS.type.metabolite]
+    _build_rel_row(g_elems,t_elems,g_labs,t_labs)
+    _build_rel_row(t_elems,p_elems,t_labs,p_labs)
+    _build_rel_row(p_elems,m_elems,p_labs,m_labs)
+
+    storage.upsert_relationships(IDS.predicates.maps,rel_rows)
+
 def _handle_no_node(storage:Neo4jStorage,node:NodeObject):
     # Note see we have with_relationships
-    raise ValueError("WHY DOES A NODE HAVE NO EDGES????")
     if len(node.relationships) != 0:
         print(f"Found Unknown with no similar nodes {node} but with rels...")
         exit()
@@ -57,7 +90,6 @@ def _handle_unknown_nodes(storage:Neo4jStorage):
         existing_nodes = list_diff(storage.find_nodes([i.id]), [i])
         if len(existing_nodes) == 0:
             _handle_no_node(storage,i)
-
         if len(existing_nodes) == 1:
             storage.merge_nodes([i.id],
                                 canonical_label=existing_nodes[0].label)
@@ -74,11 +106,26 @@ def _handle_unknown_nodes(storage:Neo4jStorage):
 
 def _handle_multiple_products(storage:Neo4jStorage):
         # Assume gene has single product (Prokaryotes),
-        for i in storage.find_nodes(label=IDS.type.gene,with_relationships=True):
+        for i in storage.find_nodes(label=IDS.type.rna,with_relationships=True):
             if IDS.predicates.product in i.relationships:
                 products = i.relationships[IDS.predicates.product]
+                to_add = []
+                to_merge = []
                 if len(products) > 1:
-                    storage.merge_nodes(products)
+                    for p in products:
+                        p_rels = storage.find_relationships(right_id=p)
+                        print(p_rels,len(p_rels))
+                        if len(p_rels) > 1:
+                            to_add.append(p)
+                        else:
+                            to_merge.append(p)
+                    m_node = storage.merge_nodes(to_merge)
+                    # Not been tested, the thing shit itself.
+                    for a in to_add:
+                        storage.add_property(m_node.id,
+                                             IDS.predicates.alias,
+                                             a,m_node.label)
+        #storage. Remove these protein family nodes.
 
 def _find_layer(storage:Neo4jStorage,node):
     o_t = None

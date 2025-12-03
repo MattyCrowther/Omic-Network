@@ -34,7 +34,7 @@ class TestNetworkBuilder(unittest.TestCase):
     def assert_identifiers_present(self, dataset):
         # Every element from each dataset must appear either
         # as a concrete node ID or inside a stub’s aliases.
-        ids = [ele for ele, _, _ in dataset]
+        ids = [ele for ele, _ in dataset.features()]
         found = {n.id for n in self.storage.find_nodes(ids=ids)}
         stubs = self.storage.find_nodes(label=IDS.type.unknown)
         alias_in_stubs = set()
@@ -81,10 +81,12 @@ class TestNetworkBuilder(unittest.TestCase):
             self.assertEqual(len(set(n1_types)),1)
             self.assertEqual(len(set(n2_types)),1)
 
-            n1 = self.storage.find_nodes(ids=[n.identifier for n in result.members(g1)],
-                                         label=n1_types[0])
-            n2 = self.storage.find_nodes(ids=[n.identifier for n in result.members(g2)],
-                                         label=n2_types[0])
+            n1 = self.storage.find_nodes(ids=[n.identifier for n 
+                                              in result.members(g1)],
+                                              label=n1_types[0])
+            n2 = self.storage.find_nodes(ids=[n.identifier for 
+                                              n in result.members(g2)],
+                                              label=n2_types[0])
             if len(n2) == 0:
                 uk_node_ids = [f"UNK:{r}" for r in [n.identifier for n in result.members(g2)]]
                 n2 = self.storage.find_nodes(ids=uk_node_ids,label=IDS.type.unknown)
@@ -145,18 +147,8 @@ class TestNetworkBuilder(unittest.TestCase):
             metadata_path=Path("data/samples_metadata.csv"),
         )
         result = match_references(sequence_data,gff_data,trans_data)
-        '''
-        # The problem is essentially: GeneID : [SampleId]. But Its a matrix right? Each Gene id is tagged as synonym  
-        for r,v in result.groups.items():
-            if "SRX4985292" in [x.identifier for x in v]:
-                print([a.identifier for a in v])
-            rels = result.relations_from(r)
-            for rel in rels:
-                if "SRX4985292" in [x.identifier for x in result.members(rel[1])]:
-                    print(v,rel)
-        '''
-        #gb.add_omic_set(sequence_data)
-        #gb.add_omic_set(gff_data)
+        gb.add_omic_set(sequence_data)
+        gb.add_omic_set(gff_data)
         gb.add_omic_set(trans_data)
         gb.add_alignment_data(result)
 

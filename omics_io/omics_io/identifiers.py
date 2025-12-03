@@ -14,6 +14,7 @@ class _Entity:
     sample: Final[str] = "sample"
     other: Final[str] = "other"
     unknown: Final[str] = "unknown"
+    study: Final[str] = "study"
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +35,7 @@ class _Predicate:
     confidence: Final[str] = "confidence"
     alias: Final[str] = "aliases"
     product: Final[str] = "product"
+    maps: Final[str] = "maps"
 
 @dataclass(frozen=True, slots=True)
 class _OmicsType:
@@ -45,19 +47,14 @@ class _OmicsType:
 
 @dataclass(frozen=True, slots=True)
 class _Namespace:
-
     Ensembl_Gene: Final[str] = "Ensembl.Gene"
     Ensembl_Transcript: Final[str] = "Ensembl.Transcript"
     RefSeq_Locus: Final[str] = "RefSeq.locus_tag"
     SGD_Yeast: Final[str] = "SGD.Orf"
-
     UniProtKB: Final[str] = "UniProtKB"
-
     HMDB: Final[str] = "HMDB"
     KEGG_Compound: Final[str] = "KEGG.Compound"
-
     SampleID: Final[str] = "sample_id"
-
     NA: Final[str] = "n/a"
     REFMET: Final[str] = "RefMet"
     METAB: Final[str] = "Metabolite"

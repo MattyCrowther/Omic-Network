@@ -71,8 +71,6 @@ def _handle_no_node(storage:Neo4jStorage,node:NodeObject):
         print(f"Found Unknown {node} but with different label. ")
         exit()
 
-    
-
 def _handle_unknown_nodes(storage:Neo4jStorage):
     '''
     Case 1:
@@ -103,9 +101,9 @@ def _handle_unknown_nodes(storage:Neo4jStorage):
 
     return results
 
-
 def _handle_multiple_products(storage:Neo4jStorage):
         # Assume gene has single product (Prokaryotes),
+        prot_fams = []
         for i in storage.find_nodes(label=IDS.type.rna,with_relationships=True):
             if IDS.predicates.product in i.relationships:
                 products = i.relationships[IDS.predicates.product]
@@ -114,18 +112,17 @@ def _handle_multiple_products(storage:Neo4jStorage):
                 if len(products) > 1:
                     for p in products:
                         p_rels = storage.find_relationships(right_id=p)
-                        print(p_rels,len(p_rels))
                         if len(p_rels) > 1:
                             to_add.append(p)
+                            prot_fams.append(p)
                         else:
                             to_merge.append(p)
                     m_node = storage.merge_nodes(to_merge)
-                    # Not been tested, the thing shit itself.
                     for a in to_add:
                         storage.add_property(m_node.id,
                                              IDS.predicates.alias,
                                              a,m_node.label)
-        #storage. Remove these protein family nodes.
+        storage.remove_nodes(prot_fams,label=IDS.type.protein)
 
 def _find_layer(storage:Neo4jStorage,node):
     o_t = None
